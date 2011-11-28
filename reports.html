@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Monthly Income Statements{% endblock %}
+{% block content %}
+  <a href="/">Back to Front</a>
+
+  <script>
+    $(function() {
+      $("#tabs".tabs();
+    });
+  </script>
+
+  <div id="tabs">
+    <ul>
+    {% for year in years %}
+      <li>
+        <a href="#tabs-{{ loop.index }}">{{ year }}</a>
+      </li>
+    {% endfor %}
+    </ul>
+    {% for stm in monthly_income_stms %}
+    <div id="tabs-{{ loop.index }}">
+      {{ stm }}
+    </div>
+    {% endfor %}
+  </div>
+{% endblock %}

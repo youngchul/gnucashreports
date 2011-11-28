@@ -1,0 +1,12 @@
+==============
+GnuCashReports
+==============
+
+GnuCashReports generates financial statements from a GnuCash file. It runs on
+Google App Engine.
+
+A personal financial statement consists of a balance sheet and an income
+statement. A balance sheet is a list of what you own and what you owe at a
+particular moment in time (net worth = assets - liabilities). An income
+statement is a list of what money you earned and what money you spent over a
+period of time (net income = income - expenses).

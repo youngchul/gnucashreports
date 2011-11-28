@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Front Page{% endblock %}
+{% block head %}
+  {{ super() }}
+  <script type="text/javascript" src="/static/mylib.js"></script>
+{% endblock %}
+{% block content %}
+  <h1>GnuCash Reports</h1>
+  <form id="upform" enctype="multipart/form-data" action="{{ upload_url }}" method="post">
+    <div class="row">
+      <label for="gncfile">Select a file to upload</label><br />
+      <input type="file" name="file" id="file" onchange="fileSelected()" />
+    </div>
+    <div id="filename"></div>
+    <div id="filesize"></div>
+    <div id="filetype"></div>
+    <div class="row">
+      <input type="submit" name="submit" value="Upload" />
+    </div>
+    <div id="progressNumber"></div>
+    </form>
+{% endblock %}

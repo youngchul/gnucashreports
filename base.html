@@ -1,0 +1,22 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html lang="en" dir="ltr" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  {% block head %}
+  <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+  <title>{% block title %}{% endblock %} - GnuCashReports</title>
+  <link type="text/css" href="/static/style.css" rel="stylesheet" />
+  {% endblock %}
+</head>
+
+<body>
+  <div id="content">
+    {% block content %}{% endblock %}
+  </div>
+  <div id="footer">
+    {% block footer %}
+    <small><p>Copyright &copy; 2011 Youngchul Bang</p></small>
+    {% endblock %}
+  </div>
+</body>
+</html>
