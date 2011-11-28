@@ -67,6 +67,10 @@ class ServeHandler(blobstore_handlers.BlobstoreDownloadHandler):
             'monthly_income_stms': stms
         }
 
+        # Deletes the BlobInfo entity and the corresponding Blobstore value
+        # from the datastore.
+        blob_info.delete()
+
         template = jinja_env.get_template('reports.html')
         self.response.write(template.render(template_values))
 
