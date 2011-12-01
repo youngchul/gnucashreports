@@ -281,7 +281,9 @@ class IncomeStm(object):
     "An income statement"
     def __init__(self, book, start=date.min, end=date.max, all=False):
         self.book = book
-        self.incomes = [(act, act.balance(start, end)) for act in book.accounts
+        # In liability, equity and income accounts, credits increase the
+        # balance and debits decrease the balance.
+        self.incomes = [(act, -act.balance(start, end)) for act in book.accounts
                         if act.type == 'INCOME']
         self.expenses = [(act, act.balance(start, end)) for act in book.accounts
                          if act.type == 'EXPENSE']
