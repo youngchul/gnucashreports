@@ -2,18 +2,28 @@
 {% block title %}Monthly Income Statements{% endblock %}
 {% block content %}
   <a href="/">Back to Front</a>
-  <div id="tabs">
+  <div class="tabs">
     <ul>
-    {% for year in years %}
-      <li>
-        <a href="#tabs-{{ loop.index }}">{{ year }}</a>
-      </li>
-    {% endfor %}
+      <li><a href="#tabs-income-stms">Income Statements</a></li>
+      <li><a href="#tabs-balance-sheet">Balance Sheet</a></li>
     </ul>
-    {% for stm in monthly_income_stms %}
-    <div id="tabs-{{ loop.index }}">
-      {{ stm }}
+    <div id="tabs-income-stms">
+      <div class="tabs">
+        <ul>
+        {% for year in years %}
+          <li><a href="#tabs-{{ loop.index }}">{{ year }}</a></li>
+        {% endfor %}
+        </ul>
+        {% for stm in monthly_income_stms %}
+        <div id="tabs-{{ loop.index }}">
+          {{ stm }}
+        </div>
+        {% endfor %}
+        </div>
+      </div>
+    <div id="tabs-balance-sheet">
+      <p>A balance sheet will be shown here.</p>
     </div>
-    {% endfor %}
   </div>
+
 {% endblock %}

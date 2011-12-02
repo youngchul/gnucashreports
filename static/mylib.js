@@ -1,5 +1,6 @@
 $(function() {
-    $("#tabs").tabs();
+    $(".tabs").tabs();
+    $("#accordion").accordion();
 });
 
 function fileSelected() {
