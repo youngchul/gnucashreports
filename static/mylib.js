@@ -1,3 +1,7 @@
+$(function() {
+    $("#tabs").tabs();
+});
+
 function fileSelected() {
     var file = document.getElementById('file').files[0];
     if (file) {

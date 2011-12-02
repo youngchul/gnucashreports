@@ -1,9 +1,5 @@
 {% extends "base.html" %}
 {% block title %}Front Page{% endblock %}
-{% block head %}
-  {{ super() }}
-  <script type="text/javascript" src="/static/mylib.js"></script>
-{% endblock %}
 {% block content %}
   <h1>GnuCash Reports</h1>
   <form id="upform" enctype="multipart/form-data" action="{{ upload_url }}" method="post">
