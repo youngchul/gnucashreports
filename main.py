@@ -63,6 +63,7 @@ class ServeHandler(blobstore_handlers.BlobstoreDownloadHandler):
             years.append(year)
             stms.append(stm.tohtml())
         template_values = {
+            'balance_sheet': gncbook.balance_sheet().tohtml(),
             'years': years,
             'monthly_income_stms': stms
         }

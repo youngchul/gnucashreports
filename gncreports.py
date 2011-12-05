@@ -54,6 +54,9 @@ class Account(ElementWrapper):
         self.splits = []
         if element is not None: self.convert(element)
 
+    def __lt__(self, other):
+        return self.name < other.name
+
     def convert(self, element):
         self.name = self._findtext('act:name')
         self.id = self._findtext('act:id')
@@ -90,6 +93,15 @@ class Account(ElementWrapper):
             self.children.remove(entity)
         elif type(entity) is Split:
             self.splits.remove(entity)
+
+    def descendants(self):
+        "Gets the descendants of an account."
+        acts = []
+        for act in sorted(self.children):
+            acts.append(act)
+            if act.children:
+                acts.extend(act.descendants())
+        return acts
 
     def balance(self, start=date.min, end=date.max):
         return sum([split.value for split in self.splits
@@ -207,28 +219,17 @@ class Book(ElementWrapper):
             trndic[trn.id] = trn
         return trnlist, trndic
 
-    def getrootact(self):
+    def getrootact(self, type=None):
         "Gets the root account"
         # assume the first element of the account list is a root.
-        return self.accounts[0]
-
-    def getincomeact(self):
-        "Gets the income account."
-        # assume the root account has 5 fundamental type accounts as its
-        # children.
-        for act in self.getrootact().children:
-            if act.type == 'INCOME':
-                return act
-        return None
-
-    def getexpenseact(self):
-        "Gets the expense account."
-        # assume the root account has 5 fundamental type accounts as its
-        # children.
-        for act in self.getrootact().children:
-            if act.type == 'EXPENSE':
-                return act
-        return None
+        rootact = self.accounts[0]
+        if type is not None:
+            # assume the root account has 5 fundamental type accounts as its
+            # children.
+            for act in rootact.children:
+                if act.type == type:
+                    return act
+        return rootact
 
     def findact(self, name):
         """Find an account with the name."""
@@ -262,6 +263,9 @@ class Book(ElementWrapper):
         "Returns an account register ledger."
         act = self.findact(name)
         return act and AccountLedger(act, start, end)
+
+    def balance_sheet(self, start=date.min, end=date.max):
+        return BalanceSheet(self, start, end)
 
     def income_stm(self, start=date.min, end=date.max):
         "Reports an income statement over a given period."
@@ -298,12 +302,93 @@ class AccountLedger(object):
                 trn.date_posted.date(), trn.description, split.value, balance))
         return '\n'.join(s)
 
+class BalanceSheet(object):
+    "A balance sheet"
+    def __init__(self, book, start=date.min, end=date.max):
+        asset = book.getrootact('ASSET')
+        liability = book.getrootact('LIABILITY')
+        equity = book.getrootact('EQUITY')
+        self.assets = asset and [(ac, ac.balance(start, end)) for ac in
+                                 asset.descendants()] or []
+        # In liability, equity and income accounts, credits increase the
+        # balance and debits decrease the balance.
+        self.liabilities = liability and [(ac, -ac.balance(start, end)) for ac in
+                                          liability.descendants()] or []
+        self.equity = equity and [(ac, -ac.balance(start, end)) for ac in
+                                  equity.descendants()] or []
+
+    def __str__(self):
+        return self.tocsv()
+
+    def tocsv(self):
+        s = ['- Assets:']
+        total_assets = 0
+        for act, balance in self.assets:
+            total_assets += balance
+            s.append('%s, %.2f' % (act.name, balance))
+        s.append('Total Assets, %.2f' % (total_assets,))
+
+        s.append('- Liabilities:')
+        total_liabilities = 0
+        for act, balance in self.liabilities:
+            total_liabilities += balance
+            s.append('%s, %.2f' % (act.name, balance))
+        s.append('Total Liabilities, %.2f' % (total_liabilities,))
+
+        s.append('- Equity:')
+        total_equity = 0
+        for act, balance in self.equity:
+            total_equity += balance
+            s.append('%s, %.2f' % (act.name, balance))
+        s.append('Total Equity, %.2f' % (total_equity,))
+
+        return '\n'.join(s)
+
+    def tohtml(self, caption=None):
+        s = ['<table>']
+        if caption:
+            s.append('  <caption>%s</caption>' % caption)
+        s.append('  <tbody>')
+
+        s.append('    <tr><td colspan="2">Assets</td></tr>')
+        total_assets = 0
+        for act, balance in self.assets:
+            total_assets += balance
+            s.append('    <tr><td>%s</td><td>%.2f</td></tr>' %
+                     (act.name, balance))
+        s.append('    <tr><td><b>Total Assets</b></td><td>%.2f</td></tr>' %
+                 (total_assets,))
+        s.append('    <tr><td colspan="2"></td></tr>')
+
+        s.append('    <tr><td colspan="2">Liabilities</td></tr>')
+        total_liabilities = 0
+        for act, balance in self.liabilities:
+            total_liabilities += balance
+            s.append('    <tr><td>%s</td><td>%.2f</td></tr>' %
+                     (act.name, balance))
+        s.append('    <tr><td><b>Total Liabilities</b></td><td>%.2f</td></tr>' %
+                 (total_liabilities,))
+        s.append('    <tr><td colspan="2"></td></tr>')
+
+        s.append('    <tr><td colspan="2">Equity</td></tr>')
+        total_equity = 0
+        for act, balance in self.equity:
+            total_equity += balance
+            s.append('    <tr><td>%s</td><td>%.2f</td></tr>' %
+                     (act.name, balance))
+        s.append('    <tr><td><b>Total Equity</b></td><td>%.2f</td></tr>' %
+                 (total_equity,))
+
+        s.append('  </tbody>')
+        s.append('</table>')
+        return '\n'.join(s)
+
 class IncomeStm(object):
     "An income statement"
     def __init__(self, book, start=date.min, end=date.max, all=False):
         self.book = book
-        income = book.getincomeact()
-        expense = book.getexpenseact()
+        income = book.getrootact('INCOME')
+        expense = book.getrootact('EXPENSE')
         # In liability, equity and income accounts, credits increase the
         # balance and debits decrease the balance.
         self.incomes = income and [(ac, -ac.balance(start, end)) for ac in
@@ -379,8 +464,8 @@ class MonthlyIncomeStm(object):
     "A monthly income statement"
     def __init__(self, book, year, all=False):
         self.book = book
-        income = book.getincomeact()
-        expense = book.getexpenseact()
+        income = book.getrootact('INCOME')
+        expense = book.getrootact('EXPENSE')
         self.incomes = income and [(ac, []) for ac in income.children] or []
         self.total_incomes = []
         self.expenses = expense and [(ac, []) for ac in expense.children] or []

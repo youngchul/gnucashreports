@@ -4,9 +4,12 @@
   <a href="/">Back to Front</a>
   <div class="tabs">
     <ul>
-      <li><a href="#tabs-income-stms">Income Statements</a></li>
       <li><a href="#tabs-balance-sheet">Balance Sheet</a></li>
+      <li><a href="#tabs-income-stms">Income Statements</a></li>
     </ul>
+    <div id="tabs-balance-sheet">
+      {{ balance_sheet }}
+    </div>
     <div id="tabs-income-stms">
       <div class="tabs">
         <ul>
@@ -21,9 +24,6 @@
         {% endfor %}
         </div>
       </div>
-    <div id="tabs-balance-sheet">
-      <p>A balance sheet will be shown here.</p>
-    </div>
   </div>
 
 {% endblock %}
