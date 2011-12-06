@@ -35,7 +35,7 @@ class ElementWrapper(object):
         return self.element.findtext(nstag(tag))
 
 class Commodity(ElementWrapper):
-    "A commodity class."
+    """A commodity class."""
     def __init__(self, element):
         ElementWrapper.__init__(self, element)
         if element is not None: self.convert(element)
@@ -95,7 +95,7 @@ class Account(ElementWrapper):
             self.splits.remove(entity)
 
     def descendants(self):
-        "Gets the descendants of an account."
+        """Gets the descendants of an account."""
         acts = []
         for act in sorted(self.children):
             acts.append(act)
@@ -220,7 +220,7 @@ class Book(ElementWrapper):
         return trnlist, trndic
 
     def getrootact(self, type=None):
-        "Gets the root account"
+        """Gets the root account"""
         # assume the first element of the account list is a root.
         rootact = self.accounts[0]
         if type is not None:
@@ -260,19 +260,20 @@ class Book(ElementWrapper):
         return range(first, last + 1)
         
     def account_ledger(self, name, start=date.min, end=date.max):
-        "Returns an account register ledger."
+        """Returns an account register ledger."""
         act = self.findact(name)
         return act and AccountLedger(act, start, end)
 
     def balance_sheet(self, start=date.min, end=date.max):
+        """Returns a balance sheet."""
         return BalanceSheet(self, start, end)
 
     def income_stm(self, start=date.min, end=date.max):
-        "Reports an income statement over a given period."
+        """Reports an income statement over a given period."""
         return IncomeStm(self, start, end)
 
     def monthly_income_stm(self, year=date.max.year):
-        "Returns a monthly income statement."
+        """Returns a monthly income statement."""
         if year == date.max.year:
             year = self.last_transaction().date_posted.year
         return MonthlyIncomeStm(self, year)

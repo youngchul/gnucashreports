@@ -12,7 +12,7 @@ from google.appengine.ext.webapp import blobstore_handlers
 import gncreports
 
 class Gncfile(db.Model):
-    "Models a Gnucash file."
+    """Models a Gnucash file."""
     user = db.UserProperty()
     blob_key = blobstore.BlobReferenceProperty()
 
