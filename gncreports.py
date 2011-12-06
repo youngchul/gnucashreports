@@ -408,7 +408,7 @@ class BalanceSheet(object):
         for act, balances in self.equity:
             buf = ['<td>%.2f</td>' % b for b in balances]
             s.append('    <tr><td>%s</td>%s</tr>' % (act.name, ''.join(buf)))
-        buf = ['<td>%.2f</td>' % t for t in self.total['liabilities']]
+        buf = ['<td>%.2f</td>' % t for t in self.total['equity']]
         s.append('    <tr><td><b>Total Equity</b></td>%s</tr>' % ''.join(buf))
         s.append('  </tbody>')
         s.append('</table>')
