@@ -104,8 +104,13 @@ class Account(ElementWrapper):
         return acts
 
     def balance(self, start=date.min, end=date.max):
-        return sum([split.value for split in self.splits
-                    if start <= split.date() and split.date() <= end])
+        # In liability, equity and income accounts, credits increase the
+        # balance and debits decrease the balance.
+        bln = sum([split.value for split in self.splits
+                   if start <= split.date() and split.date() <= end])
+        if bln != 0 and self.type in set(['LIABILITY', 'EQUITY', 'INCOME']):
+            bln *= -1
+        return bln
 
 class Split(ElementWrapper):
     """A split classs"""
@@ -167,7 +172,7 @@ class Transaction(ElementWrapper):
         return slist
 
 class Book(ElementWrapper):
-    """ A book class"""
+    """A book class"""
     def __init__(self, element=None):
         if type(element) == str:
             tree = etree.parse(gzip.GzipFile(element))
@@ -264,9 +269,11 @@ class Book(ElementWrapper):
         act = self.findact(name)
         return act and AccountLedger(act, start, end)
 
-    def balance_sheet(self, start=date.min, end=date.max):
+    def balance_sheet(self, view='annual'):
         """Returns a balance sheet."""
-        return BalanceSheet(self, start, end)
+        # FIXME!
+        endings = [date(2011,12,31), date(2010,12,31), date(2009,12,31)]
+        return BalanceSheet(self, endings)
 
     def income_stm(self, start=date.min, end=date.max):
         """Reports an income statement over a given period."""
@@ -286,7 +293,7 @@ class Book(ElementWrapper):
         return stms
 
 class AccountLedger(object):
-    "An account ledger"
+    """An account ledger"""
     def __init__(self, account, start=date.min, end=date.max):
         self.account = account
         self.splits = [split for split in account.splits
@@ -304,95 +311,114 @@ class AccountLedger(object):
         return '\n'.join(s)
 
 class BalanceSheet(object):
-    "A balance sheet"
-    def __init__(self, book, start=date.min, end=date.max):
-        asset = book.getrootact('ASSET')
-        liability = book.getrootact('LIABILITY')
-        equity = book.getrootact('EQUITY')
-        self.assets = asset and [(ac, ac.balance(start, end)) for ac in
-                                 asset.descendants()] or []
-        # In liability, equity and income accounts, credits increase the
-        # balance and debits decrease the balance.
-        self.liabilities = liability and [(ac, -ac.balance(start, end)) for ac in
-                                          liability.descendants()] or []
-        self.equity = equity and [(ac, -ac.balance(start, end)) for ac in
-                                  equity.descendants()] or []
+    """A balance sheet"""
+    def __init__(self, book, endings):
+        self.endings = endings
+        self.assets = [(ac, []) for ac in
+                       book.getrootact('ASSET').descendants()]
+        self.liabilities = [(ac, []) for ac in
+                            book.getrootact('LIABILITY').descendants()]
+        self.equity = [(ac, []) for ac in
+                       book.getrootact('EQUITY').descendants()]
+        self.total = {'assets': [], 'liabilities': [], 'equity': []}
+
+        # Get each balance of the accounts of assets, liabilities and equity.
+        for ending in endings:
+            total = 0
+            for ac, balances in self.assets:
+                bln = ac.balance(end=ending)
+                balances.append(bln)
+                total += bln
+            self.total['assets'].append(total)
+
+            total = 0
+            for ac, balances in self.liabilities:
+                bln = ac.balance(end=ending)
+                balances.append(bln)
+                total += bln
+            self.total['liabilities'].append(total)
+
+            total = 0
+            for ac, balances in self.equity:
+                bln = ac.balance(end=ending)
+                balances.append(bln)
+                total += bln
+            self.total['equity'].append(total)
 
     def __str__(self):
         return self.tocsv()
 
     def tocsv(self):
-        s = ['- Assets:']
-        total_assets = 0
-        for act, balance in self.assets:
-            total_assets += balance
-            s.append('%s, %.2f' % (act.name, balance))
-        s.append('Total Assets, %.2f' % (total_assets,))
+        s = ['Period Endings, ' + ', '.join([str(d) for d in self.endings])]
+
+        s.append('- Assets:')
+        for act, balances in self.assets:
+            buf = ['%.2f' % b for b in balances]
+            s.append('%s, %s' % (act.name, ', '.join(buf)))
+        buf = ['%.2f' % b for b in self.total['assets']]
+        s.append('Total Assets, ' + ', '.join(buf))
 
         s.append('- Liabilities:')
-        total_liabilities = 0
-        for act, balance in self.liabilities:
-            total_liabilities += balance
-            s.append('%s, %.2f' % (act.name, balance))
-        s.append('Total Liabilities, %.2f' % (total_liabilities,))
+        for act, balances in self.liabilities:
+            buf = ['%.2f' % b for b in balances]
+            s.append('%s, %s' % (act.name, ', '.join(buf)))
+        buf = ['%.2f' % b for b in self.total['liabilities']]
+        s.append('Total Liabilities, ' + ', '.join(buf))
 
         s.append('- Equity:')
-        total_equity = 0
-        for act, balance in self.equity:
-            total_equity += balance
-            s.append('%s, %.2f' % (act.name, balance))
-        s.append('Total Equity, %.2f' % (total_equity,))
+        for act, balances in self.equity:
+            buf = ['%.2f' % b for b in balances]
+            s.append('%s, %s' % (act.name, ', '.join(buf)))
+        buf = ['%.2f' % b for b in self.total['equity']]
+        s.append('Total Equity, ' + ', '.join(buf))
 
         return '\n'.join(s)
 
     def tohtml(self, caption=None):
+        colspan = len(self.endings) + 1
         s = ['<table>']
         if caption:
             s.append('  <caption>%s</caption>' % caption)
+        s.append('  <thead>')
+        buf = ['<th>%s</th>' % str(d) for d in self.endings]
+        s.append('    <tr><th>Period Ending</th>' + ''.join(buf) + '</tr>')
+        s.append('  </thead>')
         s.append('  <tbody>')
 
-        s.append('    <tr><td colspan="2">Assets</td></tr>')
-        total_assets = 0
-        for act, balance in self.assets:
-            total_assets += balance
-            s.append('    <tr><td>%s</td><td>%.2f</td></tr>' %
-                     (act.name, balance))
-        s.append('    <tr><td><b>Total Assets</b></td><td>%.2f</td></tr>' %
-                 (total_assets,))
-        s.append('    <tr><td colspan="2"></td></tr>')
+        s.append('    <tr><td colspan="%d">Assets</td></tr>' % colspan)
+        for act, balances in self.assets:
+            buf = ['<td>%.2f</td>' % b for b in balances]
+            s.append('    <tr><td>%s</td>%s</tr>' % (act.name, ''.join(buf)))
+        buf = ['<td>%.2f</td>' % t for t in self.total['assets']]
+        s.append('    <tr><td><b>Total Assets</b></td>%s</tr>' % ''.join(buf))
+        s.append('    <tr><td colspan="%d"></td></tr>' % colspan)
 
-        s.append('    <tr><td colspan="2">Liabilities</td></tr>')
-        total_liabilities = 0
-        for act, balance in self.liabilities:
-            total_liabilities += balance
-            s.append('    <tr><td>%s</td><td>%.2f</td></tr>' %
-                     (act.name, balance))
-        s.append('    <tr><td><b>Total Liabilities</b></td><td>%.2f</td></tr>' %
-                 (total_liabilities,))
-        s.append('    <tr><td colspan="2"></td></tr>')
+        s.append('    <tr><td colspan="%d">Liabilities</td></tr>' % colspan)
+        for act, balances in self.liabilities:
+            buf = ['<td>%.2f</td>' % b for b in balances]
+            s.append('    <tr><td>%s</td>%s</tr>' % (act.name, ''.join(buf)))
+        buf = ['<td>%.2f</td>' % t for t in self.total['liabilities']]
+        s.append('    <tr><td><b>Total Liabilities</b></td>%s</tr>' %
+                 ''.join(buf))
+        s.append('    <tr><td colspan="%d"></td></tr>' % colspan)
 
-        s.append('    <tr><td colspan="2">Equity</td></tr>')
-        total_equity = 0
-        for act, balance in self.equity:
-            total_equity += balance
-            s.append('    <tr><td>%s</td><td>%.2f</td></tr>' %
-                     (act.name, balance))
-        s.append('    <tr><td><b>Total Equity</b></td><td>%.2f</td></tr>' %
-                 (total_equity,))
-
+        s.append('    <tr><td colspan="%d">Equity</td></tr>' % colspan)
+        for act, balances in self.equity:
+            buf = ['<td>%.2f</td>' % b for b in balances]
+            s.append('    <tr><td>%s</td>%s</tr>' % (act.name, ''.join(buf)))
+        buf = ['<td>%.2f</td>' % t for t in self.total['liabilities']]
+        s.append('    <tr><td><b>Total Equity</b></td>%s</tr>' % ''.join(buf))
         s.append('  </tbody>')
         s.append('</table>')
         return '\n'.join(s)
 
 class IncomeStm(object):
-    "An income statement"
+    """An income statement"""
     def __init__(self, book, start=date.min, end=date.max, all=False):
         self.book = book
         income = book.getrootact('INCOME')
         expense = book.getrootact('EXPENSE')
-        # In liability, equity and income accounts, credits increase the
-        # balance and debits decrease the balance.
-        self.incomes = income and [(ac, -ac.balance(start, end)) for ac in
+        self.incomes = income and [(ac, ac.balance(start, end)) for ac in
                                    income.children] or []
         self.expenses = expense and [(ac, ac.balance(start, end)) for ac in
                                      expense.children] or []
@@ -462,7 +488,7 @@ monthnames = ['January', 'February', 'March', 'April', 'May', 'June',
               'July','August', 'September', 'October', 'November', 'December']
 
 class MonthlyIncomeStm(object):
-    "A monthly income statement"
+    """A monthly income statement"""
     def __init__(self, book, year, all=False):
         self.book = book
         income = book.getrootact('INCOME')
