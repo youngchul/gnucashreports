@@ -259,11 +259,6 @@ class Book(ElementWrapper):
     def last_transaction(self):
         return sorted(self.transactions)[-1]
 
-    def years(self):
-        first = self.first_transaction().date_posted.year
-        last = self.last_transaction().date_posted.year
-        return range(first, last + 1)
-        
     def account_ledger(self, name, start=date.min, end=date.max):
         """Returns an account register ledger."""
         act = self.findact(name)
@@ -276,20 +271,27 @@ class Book(ElementWrapper):
         return BalanceSheet(self, endings)
 
     def income_stm(self, start=date.min, end=date.max):
-        """Reports an income statement over a given period."""
-        return IncomeStm(self, start, end)
+        """Returns an income statement over a given period."""
+        return IncomeStm(self, [(start, end)])
 
     def monthly_income_stm(self, year=date.max.year):
         """Returns a monthly income statement."""
         if year == date.max.year:
             year = self.last_transaction().date_posted.year
-        return MonthlyIncomeStm(self, year)
+        periods = [(first_date_of_month(year, m), last_date_of_month(year, m))
+                   for m in range(1, 13)]  # for each month of the year
+        return IncomeStm(self, periods)
 
     def monthly_income_stms(self):
-        "Returns a list of monthly income statements on each year."
+        """Returns a list of monthly income statements on each year."""
+        first = self.first_transaction().date_posted.year
+        last = self.last_transaction().date_posted.year
+        years = range(first, last + 1)
+        years.reverse()
+        
         stms = []
-        for year in self.years():
-            stms.append((year, MonthlyIncomeStm(self, year)))
+        for year in years:
+            stms.append((year, self.monthly_income_stm(year)))
         return stms
 
 class AccountLedger(object):
@@ -412,72 +414,6 @@ class BalanceSheet(object):
         s.append('</table>')
         return '\n'.join(s)
 
-class IncomeStm(object):
-    """An income statement"""
-    def __init__(self, book, start=date.min, end=date.max, all=False):
-        self.book = book
-        income = book.getrootact('INCOME')
-        expense = book.getrootact('EXPENSE')
-        self.incomes = income and [(ac, ac.balance(start, end)) for ac in
-                                   income.children] or []
-        self.expenses = expense and [(ac, ac.balance(start, end)) for ac in
-                                     expense.children] or []
-        if all == False:
-            self.incomes = filter(lambda p: p[1] != 0, self.incomes)
-            self.expenses = filter(lambda p: p[1] != 0, self.expenses)
-
-    def __str__(self):
-        return self.tocsv()
-
-    def tocsv(self):
-        s = ['Income:']
-        total_income = 0
-        for act, balance in self.incomes:
-            total_income += balance
-            s.append('%s, %.2f' % (act.name, balance))
-        s.append('Total Income, %.2f\n' % (total_income, ))
-
-        s.append('Expenses:')
-        total_expenses = 0
-        for act, balance in self.expenses:
-            total_expenses += balance
-            s.append('%s, %.2f' % (act.name, balance))
-        s.append('Total Expenses, %.2f\n' % (total_expenses, ))
-
-        s.append('Net Income, %.2f' % (total_income - total_expenses, ))
-        return '\n'.join(s)
-
-    def tohtml(self, caption=None):
-        s = ['<table>']
-        if caption:
-            s.append('  <caption>%s</caption>' % caption)
-        s.append('  <tbody>')
-
-        s.append('    <tr><td colspan="2">Income:</td></tr>')
-        total_income = 0
-        for act, balance in self.incomes:
-            total_income += balance
-            s.append('    <tr><td>%s</td><td>%.2f</td></tr>' %
-                     (act.name, balance))
-        s.append('    <tr><td><b>Total Income</b></td><td>%.2f</td></tr>' %
-                 (total_income,))
-
-        s.append('    <tr><td colspan="2">Expenses:</td></tr>')
-        total_expenses = 0
-        for act, balance in self.expenses:
-            total_expenses += balance
-            s.append('    <tr><td>%s</td><td>%.2f</td></tr>' %
-                     (act.name, balance))
-        s.append('    <tr><td><b>Total Expenses</b></td><td>%.2f</td></tr>' %
-                 (total_expenses,))
-        s.append('    <tr><td colspan="2"></td></tr>')
-
-        s.append('    <tr><td><b>Net Income</b></td><td>%.2f</td></tr>' %
-                 (total_income - total_expenses,))
-        s.append('  </tbody>')
-        s.append('</table>')
-        return '\n'.join(s)
-
 def first_date_of_month(year, month):
     return date(year, month, 1)
 
@@ -487,96 +423,90 @@ def last_date_of_month(year, month):
 monthnames = ['January', 'February', 'March', 'April', 'May', 'June',
               'July','August', 'September', 'October', 'November', 'December']
 
-class MonthlyIncomeStm(object):
-    """A monthly income statement"""
-    def __init__(self, book, year, all=False):
-        self.book = book
-        income = book.getrootact('INCOME')
-        expense = book.getrootact('EXPENSE')
-        self.incomes = income and [(ac, []) for ac in income.children] or []
-        self.total_incomes = []
-        self.expenses = expense and [(ac, []) for ac in expense.children] or []
-        self.total_expenses = []
-        for m in range(1, 13): # for each month
-            start = first_date_of_month(year, m)
-            end = last_date_of_month(year, m)
-            stm = IncomeStm(book, start, end, True)
+class IncomeStm(object):
+    """An income statement"""
+    def __init__(self, book, periods, view='monthly'):
+        self.periods = periods
+        self.incomes = [(ac, []) for ac in
+                        book.getrootact('INCOME').descendants()]
+        self.expenses = [(ac, []) for ac in
+                         book.getrootact('EXPENSE').descendants()]
+        self.total = {'incomes': [], 'expenses': []}
 
-            total_income = 0
-            for i in range(len(self.incomes)):
-                act, balances = self.incomes[i]
-                act2, balance = stm.incomes[i]
-                balances.append(balance)
-                total_income += balance
-            self.total_incomes.append(total_income)
+        # Get each balance of the income and expense accounts
+        for beginning, ending in periods:
+            total = 0
+            for ac, balances in self.incomes:
+                bln = ac.balance(beginning, ending)
+                balances.append(bln)
+                total += bln
+            self.total['incomes'].append(total)
 
-            total_expense = 0
-            for i in range(len(self.expenses)):
-                act, balances = self.expenses[i]
-                act2, balance = stm.expenses[i]
-                balances.append(balance)
-                total_expense += balance
-            self.total_expenses.append(total_expense)
-        if all == False:
-            self.incomes = filter(lambda p: sum(p[1]) != 0, self.incomes)
-            self.expenses = filter(lambda p: sum(p[1]) != 0, self.expenses)
+            total = 0
+            for ac, balances in self.expenses:
+                bln = ac.balance(beginning, ending)
+                balances.append(bln)
+                total += bln
+            self.total['expenses'].append(total)
+
+        # Filter out accounts containing only zero balances
+        self.incomes = filter(lambda p: sum(p[1]) != 0, self.incomes)
+        self.expenses = filter(lambda p: sum(p[1]) != 0, self.expenses)
 
     def __str__(self):
         return self.tocsv()
 
     def tocsv(self):
-        s = ['Income:']
+        s = []
+        s.append('Incomes:')
         for act, balances in self.incomes:
             buf = ['%.2f' % b for b in balances]
-            s.append(act.name + ', ' + ', '.join(buf))
-        buf = ['%.2f' % t for t in self.total_incomes]
+            s.append('%s, %s' % (act.name, ', '.join(buf)))
+        buf = ['%.2f' % t for t in self.total['incomes']]
         s.append('Total Income, ' + ', '.join(buf) + '\n')
 
         s.append('Expenses:')
         for act, balances in self.expenses:
             buf = ['%.2f' % b for b in balances]
-            s.append(act.name + ', ' + ', '.join(buf))
-        buf = ['%.2f' % t for t in self.total_expenses]
+            s.append('%s, %s' % (act.name, ', '.join(buf)))
+        buf = ['%.2f' % t for t in self.total['expenses']]
         s.append('Total Expenses, ' + ', '.join(buf) + '\n')
 
         buf = ['%.2f' % (i - e) for i, e
-               in zip(self.total_incomes, self.total_expenses)]
+               in zip(self.total['incomes'], self.total['expenses'])]
         s.append('Net Income, ' + ', '.join(buf))
         return '\n'.join(s)
 
     def tohtml(self, caption=None):
+        ncols = len(self.periods) + 1
         s = ['<table>']
         if caption:
             s.append('  <caption>%s</caption>' % caption)
         s.append('  <thead>')
         buf = ['<th>%s</th>' % m for m in monthnames]
-        s.append('    <tr><th></th>' + ''.join(buf) + '</tr>')
+        s.append('    <tr><th>Period Ending</th>%s</tr>' % ''.join(buf))
         s.append('  </thead>')
 
         s.append('  <tbody>')
-        s.append('    <tr><td colspan="13">Income:</td></tr>')
+        s.append('    <tr><td colspan="%d">Incomes</td></tr>' % ncols)
         for act, balances in self.incomes:
             buf = ['<td>%.2f</td>' % b for b in balances]
-            s.append('    <tr><td>%s</td>' % (act.name,) +
-                     ''.join(buf) + '</tr>')
-        buf = ['<td>%.2f</td>' % t for t in self.total_incomes]
-        s.append('    <tr><td><b>Total Income</b></td>' +
-                 ''.join(buf) + '</tr>')
+            s.append('    <tr><td>%s</td>%s</tr>' % (act.name, ''.join(buf)))
+        buf = ['<td>%.2f</td>' % t for t in self.total['incomes']]
+        s.append('    <tr><td><b>Total Incomes</b></td>%s</tr>' % ''.join(buf))
+        s.append('    <tr><td colspan="%d"></td></tr>' % ncols)
 
-        s.append('    <tr><td colspan="13">Expenses:</td></tr>')
+        s.append('    <tr><td colspan="%d">Expenses</td></tr>' % ncols)
         for act, balances in self.expenses:
             buf = ['<td>%.2f</td>' % b for b in balances]
-            s.append('    <tr><td>%s</td>' % (act.name,) +
-                     ''.join(buf) + '</tr>')
-        buf = ['<td>%.2f</td>' % t for t in self.total_expenses]
-        s.append('    <tr><td><b>Total Expenses</b></td>' +
-                 ''.join(buf) + '</tr>')
-        s.append('    <tr><td colspan="13"></td></tr>')
+            s.append('    <tr><td>%s</td>%s</tr>' % (act.name, ''.join(buf)))
+        buf = ['<td>%.2f</td>' % t for t in self.total['expenses']]
+        s.append('    <tr><td><b>Total Expenses</b></td>%s</tr>' % ''.join(buf))
+        s.append('    <tr><td colspan="%d"></td></tr>' % ncols)
 
         buf = ['<td>%.2f</td>' % (i - e) for i, e in
-               zip(self.total_incomes, self.total_expenses)]
-        s.append('    <tr><td><b>Net Income</b></td>' +
-                 ''.join(buf) + '</tr>')
+               zip(self.total['incomes'], self.total['expenses'])]
+        s.append('    <tr><td><b>Net Income</b></td>%s</tr>' % ''.join(buf))
         s.append('  </tbody>')
         s.append('</table>')
         return '\n'.join(s)
